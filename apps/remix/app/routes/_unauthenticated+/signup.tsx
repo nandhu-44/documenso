@@ -1,7 +1,4 @@
-import { redirect } from 'react-router';
-
 import { IS_GOOGLE_SSO_ENABLED, IS_OIDC_SSO_ENABLED } from '@documenso/lib/constants/auth';
-import { env } from '@documenso/lib/utils/env';
 
 import { SignUpForm } from '~/components/forms/signup';
 import { appMetaTags } from '~/utils/meta';
@@ -13,15 +10,9 @@ export function meta() {
 }
 
 export function loader() {
-  const NEXT_PUBLIC_DISABLE_SIGNUP = env('NEXT_PUBLIC_DISABLE_SIGNUP');
-
   // SSR env variables.
   const isGoogleSSOEnabled = IS_GOOGLE_SSO_ENABLED;
   const isOIDCSSOEnabled = IS_OIDC_SSO_ENABLED;
-
-  if (NEXT_PUBLIC_DISABLE_SIGNUP === 'true') {
-    throw redirect('/signin');
-  }
 
   return {
     isGoogleSSOEnabled,

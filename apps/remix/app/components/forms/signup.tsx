@@ -41,7 +41,7 @@ export const ZSignUpFormSchema = z
       .min(1, { message: msg`Please enter a valid name.`.id }),
     email: z.string().email().min(1),
     password: ZPasswordSchema,
-    signature: z.string().min(1, { message: msg`We need your signature to sign documents`.id }),
+    signature: z.string().optional(),
   })
   .refine(
     (data) => {
@@ -85,27 +85,36 @@ export const SignUpForm = ({
   const utmSrc = searchParams.get('utm_source') ?? null;
 
   const form = useForm<TSignUpFormSchema>({
-    values: {
+    defaultValues: {
       name: '',
       email: initialEmail ?? '',
       password: '',
       signature: '',
     },
-    mode: 'onBlur',
+    mode: 'onChange',
     resolver: zodResolver(ZSignUpFormSchema),
   });
 
   const isSubmitting = form.formState.isSubmitting;
 
   const onFormSubmit = async ({ name, email, password, signature }: TSignUpFormSchema) => {
+    console.log('🚀 onFormSubmit called with data:', {
+      name,
+      email,
+      password: '***',
+      signature: signature ? 'Present' : 'Missing',
+    });
+
     try {
+      console.log('📡 Calling authClient.emailPassword.signUp...');
       await authClient.emailPassword.signUp({
         name,
         email,
         password,
-        signature,
+        signature: signature || null,
       });
 
+      console.log('✅ Signup successful, navigating to unverified-account...');
       await navigate(`/unverified-account`);
 
       toast({
@@ -122,6 +131,7 @@ export const SignUpForm = ({
         custom_campaign_params: { src: utmSrc },
       });
     } catch (err) {
+      console.error('❌ Signup error:', err);
       const error = AppError.parseError(err);
 
       const errorMessage = signupErrorMessages[error.code] ?? signupErrorMessages.INVALID_REQUEST;
@@ -222,14 +232,35 @@ export const SignUpForm = ({
         <Form {...form}>
           <form
             className="flex w-full flex-1 flex-col gap-y-4"
-            onSubmit={form.handleSubmit(onFormSubmit)}
+            onSubmit={async (e) => {
+              console.log('🔥 Form onSubmit event triggered!');
+              console.log('Event type:', e.type);
+              console.log('Event target:', e.target);
+              console.log('Form is valid:', form.formState.isValid);
+              console.log('Form values:', form.getValues());
+
+              // Prevent default form submission FIRST
+              e.preventDefault();
+              e.stopPropagation();
+
+              console.log('⏳ Prevented default, calling form.handleSubmit...');
+
+              // Validate and submit using React Hook Form
+              if (form.formState.isValid) {
+                const values = form.getValues();
+                console.log('📋 Form is valid, submitting with values:', values);
+                await onFormSubmit(values);
+              } else {
+                console.log('❌ Form is invalid, triggering validation...');
+                await form.trigger();
+              }
+            }}
           >
-            <fieldset
+            <div
               className={cn(
                 'flex h-[550px] w-full flex-col gap-y-4',
                 (isGoogleSSOEnabled || isOIDCSSOEnabled) && 'h-[650px]',
               )}
-              disabled={isSubmitting}
             >
               <FormField
                 control={form.control}
@@ -240,7 +271,7 @@ export const SignUpForm = ({
                       <Trans>Full Name</Trans>
                     </FormLabel>
                     <FormControl>
-                      <Input type="text" {...field} />
+                      <Input type="text" {...field} disabled={isSubmitting} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -256,7 +287,7 @@ export const SignUpForm = ({
                       <Trans>Email Address</Trans>
                     </FormLabel>
                     <FormControl>
-                      <Input type="email" {...field} />
+                      <Input type="email" {...field} disabled={isSubmitting} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -273,7 +304,7 @@ export const SignUpForm = ({
                     </FormLabel>
 
                     <FormControl>
-                      <PasswordInput {...field} />
+                      <PasswordInput {...field} disabled={isSubmitting} />
                     </FormControl>
 
                     <FormMessage />
@@ -290,11 +321,18 @@ export const SignUpForm = ({
                       <Trans>Sign Here</Trans>
                     </FormLabel>
                     <FormControl>
-                      <SignaturePadDialog
-                        disabled={isSubmitting}
-                        value={value}
-                        onChange={(v) => onChange(v ?? '')}
-                      />
+                      <div onClick={() => console.log('Signature pad clicked!')}>
+                        <SignaturePadDialog
+                          disabled={isSubmitting}
+                          value={value || ''}
+                          onChange={(v) => {
+                            console.log('Signature changed:', v);
+                            onChange(v || '');
+                            // Force form revalidation
+                            void form.trigger('signature');
+                          }}
+                        />
+                      </div>
                     </FormControl>
 
                     <FormMessage />
@@ -354,13 +392,29 @@ export const SignUpForm = ({
                   </Link>
                 </Trans>
               </p>
-            </fieldset>
+            </div>
 
             <Button
-              loading={form.formState.isSubmitting}
-              type="submit"
+              loading={isSubmitting}
+              type="button"
               size="lg"
               className="mt-6 w-full"
+              disabled={isSubmitting}
+              onClick={() => {
+                console.log('🖱️ Complete button clicked!');
+                console.log('Button disabled:', isSubmitting);
+
+                // Use React Hook Form's handleSubmit which manages submission state properly
+                void form.handleSubmit(
+                  async (values) => {
+                    console.log('📋 Form handleSubmit called with values:', values);
+                    await onFormSubmit(values);
+                  },
+                  (errors) => {
+                    console.log('❌ Form validation failed with errors:', errors);
+                  },
+                )();
+              }}
             >
               <Trans>Complete</Trans>
             </Button>

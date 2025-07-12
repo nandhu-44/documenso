@@ -141,6 +141,8 @@ export const emailPasswordRoute = new Hono<HonoAuthContext>()
    * Signup endpoint.
    */
   .post('/signup', sValidator('json', ZSignUpSchema), async (c) => {
+    console.log('🔥 SIGNUP ENDPOINT HIT - Backend received request');
+
     if (env('NEXT_PUBLIC_DISABLE_SIGNUP') === 'true') {
       throw new AppError('SIGNUP_DISABLED', {
         message: 'Signups are disabled.',
@@ -149,9 +151,22 @@ export const emailPasswordRoute = new Hono<HonoAuthContext>()
 
     const { name, email, password, signature } = c.req.valid('json');
 
+    console.log('📝 Signup data received:', {
+      name,
+      email,
+      hasPassword: !!password,
+      hasSignature: !!signature,
+    });
+
     const user = await createUser({ name, email, password, signature }).catch((err) => {
-      console.error(err);
+      console.error('❌ Error creating user:', err);
       throw err;
+    });
+
+    console.log('✅ User created successfully:', {
+      id: user.id,
+      email: user.email,
+      name: user.name,
     });
 
     await jobsClient.triggerJob({
@@ -160,6 +175,8 @@ export const emailPasswordRoute = new Hono<HonoAuthContext>()
         email: user.email,
       },
     });
+
+    console.log('📧 Signup confirmation email job triggered for:', user.email);
 
     return c.text('OK', 201);
   })
